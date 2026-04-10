@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StandupDigest</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f7fafc; color: #2d3748; }
+    header { background: #2b6cb0; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.4rem; }
+    .container { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+    .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 24px; margin-bottom: 24px; }
+    h2 { font-size: 1.1rem; color: #4a5568; margin-bottom: 16px; }
+    label { display: block; font-size: .85rem; font-weight: 600; color: #4a5568; margin-bottom: 4px; }
+    input, textarea, select { width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: .95rem; margin-bottom: 12px; }
+    textarea { min-height: 80px; resize: vertical; }
+    button { background: #2b6cb0; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: .95rem; }
+    button:hover { background: #2c5282; }
+    .success { background: #c6f6d5; color: #276749; padding: 10px; border-radius: 6px; margin-top: 12px; }
+    .error { background: #fed7d7; color: #c53030; padding: 10px; border-radius: 6px; margin-top: 12px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    small { color: #a0aec0; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <span style="font-size:1.5rem">📋</span>
+    <h1>StandupDigest — Async Standup Updates</h1>
+  </header>
+  <div class="container">
+    <div class="card">
+      <h2>Submit Your Standup Update</h2>
+      <div class="grid">
+        <div>
+          <label>Team ID</label>
+          <input id="team_id" placeholder="e.g. team-alpha" />
+          <label>Your Name</label>
+          <input id="member_name" placeholder="Jane Smith" />
+          <label>Your Email</label>
+          <input id="member_email" type="email" placeholder="jane@company.com" />
+        </div>
+        <div>
+          <label>What did you do yesterday?</label>
+          <textarea id="yesterday" placeholder="Finished the auth module, reviewed 3 PRs..."></textarea>
+          <label>What are you doing today?</label>
+          <textarea id="today" placeholder="Starting on the payment integration..."></textarea>
+          <label>Any blockers?</label>
+          <input id="blockers" placeholder="Waiting on API keys from DevOps (optional)" />
+        </div>
+      </div>
+      <button onclick="submitUpdate()">Submit Update</button>
+      <div id="update-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Register Your Team</h2>
+      <div class="grid">
+        <div>
+          <label>Team ID (unique slug)</label>
+          <input id="new_team_id" placeholder="team-alpha" />
+          <label>Team Name</label>
+          <input id="team_name" placeholder="Alpha Squad" />
+          <label>Digest Email (receives daily summary)</label>
+          <input id="digest_email" type="email" placeholder="leads@company.com" />
+        </div>
+        <div>
+          <label>Digest Time (24h, UTC)</label>
+          <input id="digest_time" value="09:00" placeholder="09:00" />
+          <label>Timezone</label>
+          <input id="timezone" value="UTC" placeholder="UTC" />
+        </div>
+      </div>
+      <button onclick="createTeam()">Create Team</button>
+      <div id="team-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Trigger Digest Manually</h2>
+      <label>Team ID</label>
+      <input id="digest_team_id" placeholder="team-alpha" />
+      <button onclick="triggerDigest()">Send Digest Now</button>
+      <div id="digest-msg"></div>
+      <small style="display:block;margin-top:8px">Sends the digest email for today's updates to the team's digest address.</small>
+    </div>
+  </div>
+
+  <script>
+    const BASE = '';
+
+    async function submitUpdate() {
+      const body = {
+        team_id: document.getElementById('team_id').value,
+        member_name: document.getElementById('member_name').value,
+        member_email: document.getElementById('member_email').value,
+        yesterday: document.getElementById('yesterday').value,
+        today: document.getElementById('today').value,
+        blockers: document.getElementById('blockers').value,
+      };
+      try {
+        const r = await fetch(`${BASE}/api/updates`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const d = await r.json();
+        document.getElementById('update-msg').innerHTML = r.ok
+          ? `<div class="success">Update submitted for ${body.date || 'today'}!</div>`
+          : `<div class="error">${d.detail || 'Error submitting'}</div>`;
+      } catch(e) { document.getElementById('update-msg').innerHTML = `<div class="error">${e.message}</div>`; }
+    }
+
+    async function createTeam() {
+      const body = {
+        team_id: document.getElementById('new_team_id').value,
+        team_name: document.getElementById('team_name').value,
+        digest_email: document.getElementById('digest_email').value,
+        digest_time: document.getElementById('digest_time').value,
+        timezone: document.getElementById('timezone').value,
+      };
+      try {
+        const r = await fetch(`${BASE}/api/teams`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const d = await r.json();
+        document.getElementById('team-msg').innerHTML = r.ok
+          ? `<div class="success">Team created! ID: ${body.team_id}</div>`
+          : `<div class="error">${d.detail || 'Error'}</div>`;
+      } catch(e) { document.getElementById('team-msg').innerHTML = `<div class="error">${e.message}</div>`; }
+    }
+
+    async function triggerDigest() {
+      const team_id = document.getElementById('digest_team_id').value;
+      try {
+        const r = await fetch(`${BASE}/api/digest/send`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ team_id }) });
+        const d = await r.json();
+        document.getElementById('digest-msg').innerHTML = r.ok
+          ? `<div class="success">${d.message}</div>`
+          : `<div class="error">${d.detail || 'Error'}</div>`;
+      } catch(e) { document.getElementById('digest-msg').innerHTML = `<div class="error">${e.message}</div>`; }
+    }
+  </script>
+</body>
+</html>
