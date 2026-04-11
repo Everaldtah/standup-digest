@@ -1,123 +1,119 @@
-# StandupDigest
+# Standup Digest
 
-**Async standup collector & AI summarizer for remote teams.**
-
-Stop wasting 15 minutes every morning on a synchronous standup meeting. StandupDigest lets each team member submit their daily update asynchronously via a simple form or API call. At a configured time, an AI-powered digest email is automatically sent to the team with a clean summary, blockers highlighted, and individual updates neatly formatted.
-
----
+> Auto-generate daily standup summaries from your team's GitHub activity — delivered to Slack or any webhook.
 
 ## Problem It Solves
 
-Remote teams are spread across timezones. Daily standup meetings either exclude half the team or require someone to join at an inconvenient hour. Async standup tools are either too expensive (Status Hero ~$3/user/mo, Geekbot ~$3/user/mo) or too feature-heavy. StandupDigest is a focused, self-hostable alternative.
-
----
+Daily standups eat 15–30 minutes of every developer's morning. Half that time is spent trying to remember what you did yesterday. Standup Digest pulls your team's commits and PRs automatically and turns them into crisp, human-readable bullet points — so your standup is ready before you even open Slack.
 
 ## Features
 
-- **Web form** — team members submit updates via browser (no app install needed)
-- **REST API** — integrate with Slack bots, Notion, or any tool via POST requests
-- **AI summaries** — GPT-4o-mini condenses the team's updates into an actionable paragraph (falls back to a clean template if no API key)
-- **Blocker highlighting** — blockers are surfaced prominently in the digest email
-- **Scheduled delivery** — configure digest time per team (e.g., 9:00 AM UTC)
-- **Multi-team support** — manage multiple teams from one instance
-- **Zero-dependency storage** — uses a local JSON file (swap for PostgreSQL in production)
-
----
+- **GitHub Activity Ingestion** — fetches commits and PRs across multiple repos
+- **AI-Powered Summaries** — GPT-4o-mini summarises activity into standup bullets grouped by author
+- **Slack Delivery** — posts formatted digest directly to any Slack channel via webhook
+- **Daily Scheduling** — configure once, get digests every morning at your chosen hour
+- **Multi-Repo Support** — monitor any number of repositories in one digest
+- **Fallback Mode** — structured plain-text digest works even without an OpenAI key
+- **REST API** — integrate with any tool via HTTP endpoints
+- **Author Filtering** — focus on specific team members
 
 ## Tech Stack
 
 - **Python 3.11+**
-- **FastAPI** — REST API & web server
-- **APScheduler** — cron-based digest delivery
-- **OpenAI GPT-4o-mini** — AI summaries (optional)
-- **SMTP** — email delivery (works with Gmail, SendGrid, Mailgun)
-
----
+- **FastAPI** — async REST API framework
+- **OpenAI GPT-4o-mini** — standup text generation
+- **APScheduler** — daily cron scheduling
+- **GitHub REST API** — commit and PR fetching
 
 ## Installation
 
 ```bash
 git clone https://github.com/Everaldtah/standup-digest
 cd standup-digest
-python -m venv venv && source venv/bin/activate
+
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
 pip install -r requirements.txt
+
 cp .env.example .env
-# Edit .env with your SMTP credentials
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# Edit .env with your keys
 ```
-
-Open `http://localhost:8000` in your browser.
-
----
 
 ## Usage
 
-### 1. Register your team
+### Start the server
 
 ```bash
-curl -X POST http://localhost:8000/api/teams \
+uvicorn main:app --reload
+# API docs at http://localhost:8000/docs
+```
+
+### Generate a digest on demand
+
+```bash
+curl -X POST http://localhost:8000/digest/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "team_id": "backend-team",
-    "team_name": "Backend Team",
-    "digest_email": "team-leads@company.com",
-    "digest_time": "09:00",
-    "timezone": "UTC"
+    "github_token": "ghp_your_token",
+    "repos": ["your-org/backend", "your-org/frontend"],
+    "since_hours": 24,
+    "team_members": ["alice", "bob"],
+    "openai_api_key": "sk-..."
   }'
 ```
 
-### 2. Submit a standup update
+### Schedule a daily Slack digest
 
 ```bash
-curl -X POST http://localhost:8000/api/updates \
+curl -X POST http://localhost:8000/digest/schedule \
   -H "Content-Type: application/json" \
   -d '{
-    "team_id": "backend-team",
-    "member_name": "Alice Chen",
-    "member_email": "alice@company.com",
-    "yesterday": "Finished the payment webhook integration and deployed to staging",
-    "today": "Writing unit tests for the billing module",
-    "blockers": "Waiting on Stripe sandbox credentials from DevOps"
+    "github_token": "ghp_your_token",
+    "repos": ["your-org/backend"],
+    "cron_hour": 9,
+    "slack_webhook": "https://hooks.slack.com/services/..."
   }'
 ```
 
-### 3. Trigger a digest manually
+### Example output
 
-```bash
-curl -X POST http://localhost:8000/api/digest/send \
-  -H "Content-Type: application/json" \
-  -d '{"team_id": "backend-team"}'
+```markdown
+## Daily Standup Digest
+_12 commits · 4 PRs · 3 contributors_
+
+### alice
+- 💻 [backend] Fix null pointer in user auth flow
+- 🔄 PR #142: Add rate limiting middleware (open)
+
+### bob
+- ✅ PR #139: Migrate database schema (merged)
+- 💻 [frontend] Update dashboard chart colours
 ```
-
-### 4. View today's updates
-
-```bash
-curl http://localhost:8000/api/updates/backend-team
-```
-
----
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `SMTP_HOST` | Yes | SMTP server (e.g. smtp.gmail.com) |
-| `SMTP_PORT` | Yes | SMTP port (587 for TLS) |
-| `SMTP_USER` | Yes | SMTP username |
-| `SMTP_PASS` | Yes | SMTP password / app password |
-| `FROM_EMAIL` | No | Sender email address |
-| `OPENAI_API_KEY` | No | Enables AI-powered summaries |
-| `PORT` | No | Server port (default: 8000) |
-
----
+| `GITHUB_TOKEN` | Yes | GitHub PAT with `repo` read scope |
+| `OPENAI_API_KEY` | No | Enables AI-generated summaries |
+| `SLACK_WEBHOOK_URL` | No | Default Slack delivery channel |
 
 ## Monetization Model
 
-| Tier | Price | Features |
+| Plan | Price | Limits |
 |---|---|---|
-| **Free** | $0 | 1 team, 5 members, basic templates |
-| **Starter** | $9/mo | 3 teams, 15 members, AI summaries |
-| **Team** | $29/mo | Unlimited teams, Slack integration, analytics |
-| **Enterprise** | $99/mo | SSO, audit log, priority support, custom branding |
+| Free | $0/mo | 2 repos, 1 schedule, plain-text only |
+| Starter | $12/mo | 10 repos, 5 schedules, AI summaries |
+| Team | $29/mo | Unlimited repos, Jira integration, custom branding |
+| Enterprise | $99/mo | SSO, audit logs, priority support |
 
-**Why it can grow:** Most teams pay $3-5/user/month for Status Hero or Geekbot. A flat-fee model at $29/mo is immediately cheaper for any team over 6 people. Self-hostable builds trust with security-conscious companies.
+Target MRR: $5K within 6 months targeting 50 small dev teams.
+
+## Roadmap
+
+- [ ] Jira ticket activity integration
+- [ ] Linear.app integration
+- [ ] Custom digest templates
+- [ ] Weekly/sprint summary mode
+- [ ] GitHub Actions trigger support
